@@ -30,23 +30,21 @@ import java.util._
 
 def readEmail(f:String) = {
 
-  val is = new FileInputStream(new File(f))
-  val s = Session.getDefaultInstance(new Properties())
-
-  val msg = new MimeMessage(s, is)
+  val msg = readMailFile(f)
   msg.getContent() match {
     case m: Multipart => m.getBodyPart(0).getContent().toString()
     case _ => msg.getContent().toString()
   }
 }
 
-def readSubject(f:String) = {
-
+def readMailFile(f:String) = {
   val is = new FileInputStream(new File(f))
   val s = Session.getDefaultInstance(new Properties())
+  new MimeMessage(s, is)
+}
 
-  val msg = new MimeMessage(s, is)
-  msg.getSubject
+def readSubject(f:String) = {
+  readMailFile(f).getSubject
 }
 
 def getDesc(description:String, email:String, bugUrl:String): String = {
@@ -126,9 +124,6 @@ task.setTitle(title)
 task.setNotes(desc)
 task.setDue(dueDate)
 
-println(task)
-/*
 val service = connectAndGetService()
 val result = service.tasks.insert("@default", task).execute()
 println("Task '" + result.getTitle() + "' has been created and added")
-*/
