@@ -31,12 +31,13 @@ import java.util._
 
 import scala.collection.JavaConversions._
 
-val debug = false
+val debug = true
 
 val phone_call_task = "☎"
 val mail_task = "✉"
 val print_task = "⎙"
 
+val TASK_SYMBOL = scala.collection.Map("c" -> phone_call_task, "m" -> mail_task, "p" -> print_task)
 
 def today() = {
   new DateTime(System.currentTimeMillis())
@@ -91,6 +92,16 @@ def getDueDate(dueDate:String) = {
     new DateTime(new java.text.SimpleDateFormat("dd/MM/yyyy").parse(dueDate))
   else
     today
+}
+
+def getSymbol(symbolLetter:String): String = {
+  if ( TASK_SYMBOL.keySet.contains(symbolLetter) ) {
+    val symbol = TASK_SYMBOL.get(symbolLetter)
+    if ( symbol != None ) {
+      return symbol.get
+    }
+  }
+  return ""
 }
 
 def connectAndGetService() = {
@@ -172,21 +183,29 @@ def editTitle(id:String, newTitle:String):Unit = {
 }
 
 object Args {
+
+  // Parameters for new tasks
   @Parameter(names = Array("-t", "--task-title"), description = "Task title", required = false)
   var title: String = ""
 
   @Parameter(names = Array("-d", "--task-description"), description = "Task description", required = false)
   var description: String = ""
 
-  @Parameter(names = Array("-e", "--email-as-description"), description = "Task description", required = false)
-  var email: String = ""
+    // optional param for creation
+  @Parameter(names = Array("-T", "--task-type"), description = "Type of the task (☎,✉,⎙)", required = false)
+  var symbol : String = ""
 
   @Parameter(names = Array("-D", "--due-date"), description = "Task description", required = false)
   var dueDate: String = ""
 
+  // Shortcut to task creation
+  @Parameter(names = Array("-e", "--email-as-description"), description = "Task description", required = false)
+  var email: String = ""
+
   @Parameter(names = Array("-b", "--bug-url"), description = "A Bug entry URL", required = false)
   var bugUrl: String = ""
 
+  // Other features
   @Parameter(names = Array("-s", "--search-tasks"), description = "Search a task title containing the provided string", required = false)
   var search: String = ""
 
@@ -214,9 +233,12 @@ listAndQuit(Args.list)
 searchAndQuit(Args.search)
 
 
-val title = getTitle(Args.title, Args.email, Args.bugUrl)
+var title = getTitle(Args.title, Args.email, Args.bugUrl)
 val desc = getDesc(Args.description, Args.email, Args.bugUrl)
 val dueDate = getDueDate(Args.dueDate)
+val symbol = getSymbol(Args.symbol)
+
+if ( symbol != "" ) title = title + " " + symbol
 
 if ( debug )
   println("title:" + title + ", desc:" + desc)
