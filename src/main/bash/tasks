@@ -1,0 +1,10 @@
+#!/bin/bash
+
+readonly TASKS_HOME=${TASKS_HOME:-$(pwd)}
+
+if [ ${#} -lt 1 ]; then
+  echo "Missing arguments !"
+  exit 1
+fi
+
+${TASKS_HOME}/src/main/bash/run-scala.sh ${TASKS_HOME}/src/main/scala/tasks.scala ${@}
