@@ -1,6 +1,7 @@
 import javax.mail._
 import javax.mail.internet._
 import java.io._
+import java.text.SimpleDateFormat
 import java.util._
 
 import com.google.api.client.auth.oauth2.Credential
@@ -27,6 +28,19 @@ import javax.mail._
 import javax.mail.internet._
 import java.io._
 import java.util._
+
+import scala.collection.JavaConversions._
+
+val debug = false
+
+val phone_call_task = "☎"
+val mail_task = "✉"
+val print_task = "⎙"
+
+
+def today() = {
+  new DateTime(System.currentTimeMillis())
+}
 
 def readEmail(f:String) = {
 
@@ -63,8 +77,11 @@ def getTitle(title:String, email:String, bugUrl:String):String = {
   if ( ! "".equals(title) )
     return title
 
-  if ( ! "".equals(email) )
-    return readSubject(email)
+  if ( ! "".equals(email) ) {
+    val subject = readSubject(email)
+    if ( "".equals(subject) ) return "Mail based task"
+    return subject
+  }
 
   throw new IllegalArgumentException("No title provided, neither to extrapolate one.")
 }
@@ -73,7 +90,7 @@ def getDueDate(dueDate:String) = {
   if ( ! "".equals(dueDate) )
     new DateTime(new java.text.SimpleDateFormat("dd/MM/yyyy").parse(dueDate))
   else
-    new DateTime(System.currentTimeMillis())
+    today
 }
 
 def connectAndGetService() = {
@@ -85,8 +102,7 @@ def connectAndGetService() = {
   val HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport()
   val SCOPES = Arrays.asList(TasksScopes.TASKS)
 
-  val in = new Object().getClass().getResourceAsStream("/client_secret.json")
-  val clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in))
+  val clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(new FileInputStream("client_secret.json")))
   val flow = new GoogleAuthorizationCodeFlow.Builder( HTTP_TRANSPORT, JSON_FACTORY, clientSecrets, SCOPES)
                   .setDataStoreFactory(DATA_STORE_FACTORY)
                   .setAccessType("offline")
@@ -95,6 +111,65 @@ def connectAndGetService() = {
   new Tasks.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential).setApplicationName(APPLICATION_NAME).build()
 }
 
+def emptyStringIfNull(s: String):String = { if (s == null) "" else s }
+
+def searchAndQuit(search: String):Unit = {
+  if ( ! "".equals(search) ) {
+    val tasks = service.tasks.list("@default").execute()
+
+    for (task <- tasks.getItems )
+      if ( task.getTitle().toLowerCase().contains(search.toLowerCase()) )
+        println(taskDisplay(task))
+    System.exit(0)
+  }
+}
+
+def isToday(due:DateTime) = {
+  isSameDay(due, Calendar.getInstance().getTime())
+}
+
+def isSameDay(due: DateTime, day: Date) = {
+  //println("Is " +  due.toStringRfc3339.substring(0,10) + " equals to " + new SimpleDateFormat("y-M-dd").format(day) + " ?")
+  due.toStringRfc3339.substring(0,10).equals(new SimpleDateFormat("y-M-dd").format(day))
+}
+
+def taskDisplay(task: com.google.api.services.tasks.model.Task) = {
+  "[" + task.getId() + "] " + task.getTitle + "\nDue on: " + task.getDue() + "\n" + emptyStringIfNull(task.getNotes)
+}
+
+def listAndQuit(isListRequested: Boolean):Unit = {
+  if ( isListRequested ) {
+    val tasks = service.tasks.list("@default").execute()
+    val dueDate = today()
+    println("Today (" + dueDate + ") tasks:")
+    for (task <- tasks.getItems )
+      if ( task.getDue() != null && isToday(task.getDue()))
+        println(taskDisplay(task))
+
+    System.exit(0)
+  }
+}
+
+def bumpDueDate(days:Int, id:String):Unit = {
+  if ( days > 0 && id != null && ! "".equals(id) ) {
+    val NB_SECONDS_BY_DAY = 86400L * 1000
+    val task = service.tasks.get("@default", id).execute();
+    task.setDue(new DateTime(task.getDue().getValue() + (days * NB_SECONDS_BY_DAY)))
+    val result = service.tasks.update("@default", task.getId(), task).execute();
+    println("Task '" + result.getTitle() + " has been bumped by " + days + " days:" + result.getDue())
+    System.exit(0)
+  }
+}
+
+def editTitle(id:String, newTitle:String):Unit = {
+  if ( id != null && ! "".equals(id) && newTitle != null && ! "".equals(newTitle) ) {
+    val task = service.tasks.get("@default", id).execute();
+    task.setTitle(newTitle)
+    val result = service.tasks.update("@default", task.getId(), task).execute();
+    println("Task new title is '" + result.getTitle())
+    System.exit(0)
+  }
+}
 
 object Args {
   @Parameter(names = Array("-t", "--task-title"), description = "Task title", required = false)
@@ -111,19 +186,45 @@ object Args {
 
   @Parameter(names = Array("-b", "--bug-url"), description = "A Bug entry URL", required = false)
   var bugUrl: String = ""
+
+  @Parameter(names = Array("-s", "--search-tasks"), description = "Search a task title containing the provided string", required = false)
+  var search: String = ""
+
+  @Parameter(names= Array("-l" , "--list-today-tasks"), description = "List today's tasks" , required = false )
+  var list = false
+
+  @Parameter(names= Array("-B", "--bump-task"), description = "Bump due date", required = false)
+  var bump: Int = 0
+
+  @Parameter(names= Array("-i", "--task-id"), description = "Task ID", required = false)
+  var id: String = ""
+
+  @Parameter(names= Array("-E", "--edit-task-title"), description = "Edit task title, requires task id", required = false)
+  var newTitle: String = ""
+
 }
 
 new JCommander(Args, args.toArray: _*)
 
+val service = connectAndGetService()
+
+editTitle(Args.id, Args.newTitle)
+bumpDueDate(Args.bump, Args.id)
+listAndQuit(Args.list)
+searchAndQuit(Args.search)
+
+
 val title = getTitle(Args.title, Args.email, Args.bugUrl)
 val desc = getDesc(Args.description, Args.email, Args.bugUrl)
 val dueDate = getDueDate(Args.dueDate)
+
+if ( debug )
+  println("title:" + title + ", desc:" + desc)
 
 val task = new com.google.api.services.tasks.model.Task()
 task.setTitle(title)
 task.setNotes(desc)
 task.setDue(dueDate)
 
-val service = connectAndGetService()
 val result = service.tasks.insert("@default", task).execute()
 println("Task '" + result.getTitle() + "' has been created and added")
