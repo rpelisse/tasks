@@ -167,9 +167,13 @@ def listAndQuit(isListRequested: Boolean):Unit = {
     val tasks = service.tasks.list("@default").execute()
     val dueDate = today()
     println("Today (" + dueDate + ") tasks:")
+    println
+    var taskNumber = 1
     for (task <- tasks.getItems )
-      if ( task.getDue() != null && isToday(task.getDue()))
-        println(taskDisplay(task))
+      if ( task.getDue() != null && isToday(task.getDue())) {
+        println(taskNumber + ") " + taskDisplay(task))
+        taskNumber = taskNumber + 1
+      }
 
     System.exit(0)
   }
