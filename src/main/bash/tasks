@@ -7,4 +7,15 @@ if [ ${#} -lt 1 ]; then
   exit 1
 fi
 
-${TASKS_HOME}/src/main/bash/run-scala.sh ${TASKS_HOME}/src/main/scala/tasks.scala ${@}
+line=""
+for arg in "$@"
+do
+  echo $arg | grep -E '[ "]' -q
+  if [ $? -eq 0 ] ; then
+    line="$line '$arg'"
+  else
+    line="$line $arg"
+  fi
+done
+
+${TASKS_HOME}/src/main/bash/run-scala.sh ${TASKS_HOME}/src/main/scala/tasks.scala ${line}
