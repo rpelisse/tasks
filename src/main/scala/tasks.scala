@@ -83,8 +83,7 @@ def getTitle(title:String, email:String, bugUrl:String):String = {
     if ( "".equals(subject) ) return "Mail based task"
     return subject
   }
-
-  throw new IllegalArgumentException("No title provided, neither to extrapolate one.")
+  title
 }
 
 def getDueDate(dueDate:String) = {
@@ -144,13 +143,24 @@ def isSameDay(due: DateTime, day: Date) = {
   due.toStringRfc3339.substring(0,10).equals(new SimpleDateFormat("y-M-dd").format(day))
 }
 
+def dateDisplay(date: DateTime) = {
+  new SimpleDateFormat("dd/MM/YYYY").format(new Date(date.getValue()))
+}
+
 def taskDisplay(task: com.google.api.services.tasks.model.Task) = {
-  "[" + task.getId() + "] " + task.getTitle + "\nDue on: " + task.getDue() + "\n" + emptyStringIfNull(task.getNotes)
+  "[" + task.getId() + "] " + task.getTitle + "\nDue on: " + dateDisplay(task.getDue()) + "\n" + emptyStringIfNull(task.getNotes)
 }
 
 def notNullNorEmpty(value: String) = {
   (value != null &&  ! "".equals(value) )
 }
+
+def addSymbolToTitle(title: String, symbol: String): String = {
+  if ( notNullNorEmpty(symbol) ) return title + " " + symbol
+  title
+}
+
+// Features methods
 
 def listAndQuit(isListRequested: Boolean):Unit = {
   if ( isListRequested ) {
@@ -168,20 +178,22 @@ def listAndQuit(isListRequested: Boolean):Unit = {
 def bumpDueDate(days:Int, id:String):Unit = {
   if ( days > 0 && id != null && ! "".equals(id) ) {
     val NB_SECONDS_BY_DAY = 86400L * 1000
-    val task = service.tasks.get("@default", id).execute();
+    val task = service.tasks.get("@default", id).execute()
     task.setDue(new DateTime(task.getDue().getValue() + (days * NB_SECONDS_BY_DAY)))
     val result = service.tasks.update("@default", task.getId(), task).execute();
-    println("Task '" + result.getTitle() + " has been bumped by " + days + " days:" + result.getDue())
+    println("Task '" + result.getTitle() + " has been bumped by " + days + " days:" + dateDisplay(result.getDue()))
     System.exit(0)
   }
 }
-
-def editTitle(id:String, newTitle:String):Unit = {
-  if ( notNullNorEmpty(id) && notNullNorEmpty(newTitle) ) {
-    val task = service.tasks.get("@default", id).execute();
-    task.setTitle(newTitle)
-    val result = service.tasks.update("@default", task.getId(), task).execute();
-    println("Task new title is '" + result.getTitle() + "'")
+def editTask(id:String, title:String, desc:String, dueDate:String, symbol: String):Unit = {
+  if ( notNullNorEmpty(id) ) {
+    val task = service.tasks.get("@default", id).execute()
+    if ( notNullNorEmpty(title) ) task.setTitle(title)
+    if ( notNullNorEmpty(desc)  ) task.setNotes(desc)
+    if ( notNullNorEmpty(symbol)) task.setTitle(addSymbolToTitle(task.getTitle(),symbol))
+    if ( dueDate != null ) task.setDue(getDueDate(dueDate))
+    val result = service.tasks.update("@default", task.getId(), task).execute()
+    println(taskDisplay(task))
     System.exit(0)
   }
 }
@@ -224,16 +236,18 @@ object Args {
   @Parameter(names= Array("-l" , "--list-today-tasks"), description = "List today's tasks" , required = false )
   var list = false
 
+  // Features using the extra -i parameter
   @Parameter(names= Array("-B", "--bump-task"), description = "Bump due date", required = false)
   var bump: Int = 0
 
   @Parameter(names= Array("-i", "--task-id"), description = "Task ID", required = false)
   var id: String = ""
 
+  // Features using id as passed value to main paramter AND reusing title, desc, ...
   @Parameter(names= Array("-E", "--edit-task-title"), description = "Edit task title, requires task id", required = false)
-  var newTitle: String = ""
+  var taskToEdit: String = ""
 
-  @Parameter(names= Array("-f", "--task-finished"), description = "Mark task as done, requires task id as value", required = false)
+  @Parameter(names= Array("-F", "--task-finished"), description = "Mark task as done, requires task id as value", required = false)
   var taskToFinishId: String = ""
 
 }
@@ -243,7 +257,6 @@ new JCommander(Args, args.toArray: _*)
 val service = connectAndGetService()
 
 taskDone(Args.taskToFinishId)
-editTitle(Args.id, Args.newTitle)
 bumpDueDate(Args.bump, Args.id)
 listAndQuit(Args.list)
 searchAndQuit(Args.search)
@@ -253,7 +266,9 @@ val desc = getDesc(Args.description, Args.email, Args.bugUrl)
 val dueDate = getDueDate(Args.dueDate)
 val symbol = getSymbol(Args.symbol)
 
-if ( symbol != "" ) title = title + " " + symbol
+editTask(Args.taskToEdit, title, desc, Args.dueDate, symbol)
+
+title = addSymbolToTitle(title, symbol)
 
 if ( debug )
   println("title:" + title + ", desc:" + desc)
