@@ -181,7 +181,15 @@ def editTitle(id:String, newTitle:String):Unit = {
     val task = service.tasks.get("@default", id).execute();
     task.setTitle(newTitle)
     val result = service.tasks.update("@default", task.getId(), task).execute();
-    println("Task new title is '" + result.getTitle())
+    println("Task new title is '" + result.getTitle() + "'")
+    System.exit(0)
+  }
+}
+
+def taskDone(id:String) = {
+  if ( notNullNorEmpty(id) ) {
+    service.tasks.delete("@default", id).execute()
+    println("Task [" + id + "] has been removed.")
     System.exit(0)
   }
 }
@@ -225,17 +233,20 @@ object Args {
   @Parameter(names= Array("-E", "--edit-task-title"), description = "Edit task title, requires task id", required = false)
   var newTitle: String = ""
 
+  @Parameter(names= Array("-f", "--task-finished"), description = "Mark task as done, requires task id as value", required = false)
+  var taskToFinishId: String = ""
+
 }
 
 new JCommander(Args, args.toArray: _*)
 
 val service = connectAndGetService()
 
+taskDone(Args.taskToFinishId)
 editTitle(Args.id, Args.newTitle)
 bumpDueDate(Args.bump, Args.id)
 listAndQuit(Args.list)
 searchAndQuit(Args.search)
-
 
 var title = getTitle(Args.title, Args.email, Args.bugUrl)
 val desc = getDesc(Args.description, Args.email, Args.bugUrl)
