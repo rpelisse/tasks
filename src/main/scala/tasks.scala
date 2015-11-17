@@ -148,6 +148,10 @@ def taskDisplay(task: com.google.api.services.tasks.model.Task) = {
   "[" + task.getId() + "] " + task.getTitle + "\nDue on: " + task.getDue() + "\n" + emptyStringIfNull(task.getNotes)
 }
 
+def notNullNorEmpty(value: String) = {
+  (value != null &&  ! "".equals(value) )
+}
+
 def listAndQuit(isListRequested: Boolean):Unit = {
   if ( isListRequested ) {
     val tasks = service.tasks.list("@default").execute()
@@ -173,7 +177,7 @@ def bumpDueDate(days:Int, id:String):Unit = {
 }
 
 def editTitle(id:String, newTitle:String):Unit = {
-  if ( id != null && ! "".equals(id) && newTitle != null && ! "".equals(newTitle) ) {
+  if ( notNullNorEmpty(id) && notNullNorEmpty(newTitle) ) {
     val task = service.tasks.get("@default", id).execute();
     task.setTitle(newTitle)
     val result = service.tasks.update("@default", task.getId(), task).execute();
