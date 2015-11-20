@@ -33,11 +33,7 @@ import scala.collection.JavaConversions._
 
 val debug = true
 
-val phone_call_task = "☎"
-val mail_task = "✉"
-val print_task = "⎙"
-
-val TASK_SYMBOL = scala.collection.Map("c" -> phone_call_task, "m" -> mail_task, "p" -> print_task)
+val TASK_SYMBOL = scala.collection.Map("c" -> "☎", "m" -> "✉", "p" -> "⎙", "M" -> "♫")
 
 def today() = {
   new DateTime(System.currentTimeMillis())
