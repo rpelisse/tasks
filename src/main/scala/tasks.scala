@@ -35,6 +35,14 @@ val debug = true
 
 val TASK_SYMBOL = scala.collection.Map("c" -> "☎", "m" -> "✉", "p" -> "⎙", "M" -> "♫")
 
+def buildTask(title:String, desc: String, date: DateTime) = {
+  val task = new com.google.api.services.tasks.model.Task()
+  task.setTitle(title)
+  task.setNotes(desc)
+  task.setDue(date)
+  task
+}
+
 def today() = {
   new DateTime(System.currentTimeMillis())
 }
@@ -65,6 +73,16 @@ def getDesc(description:String, email:String, bugUrl:String): String = {
   if ( ! "".equals(email) )
     return readEmail(email)
   description
+}
+
+def parseTaskLine(line: String, sep: String = ";") = {
+   val arr = line.split(sep)
+   if (arr.length == 1 )
+     (arr(0),"")
+   else if ( arr.length == 2)
+     (arr(0),arr(1))
+   else
+     ("","")
 }
 
 def getTitle(title:String, email:String, bugUrl:String):String = {
@@ -206,6 +224,23 @@ def taskDone(id:String) = {
   }
 }
 
+def bulkTasksAdd(tasksFile:String) = {
+  if ( notNullNorEmpty(tasksFile) ) {
+    println("Loading task from file:" + tasksFile)
+    val lines = scala.io.Source.fromFile(tasksFile).getLines()
+    for ( line <- lines ) {
+      println(line)
+      val (title, desc) = parseTaskLine(line)
+      println("t:" + title + ", " + desc)
+      if ( notNullNorEmpty(title) ) {
+        val result = service.tasks.insert("@default", buildTask( title,desc, today()) ).execute()
+        println("Task '" + result.getTitle() + "' has been created and added")
+      }
+    }
+    System.exit(0)
+  }
+}
+
 object Args {
 
   // Parameters for new tasks
@@ -250,12 +285,15 @@ object Args {
   @Parameter(names= Array("-F", "--task-finished"), description = "Mark task as done, requires task id as value", required = false)
   var taskToFinishId: String = ""
 
+  @Parameter(names= Array("-A", "--bulk-add"), description = "Add tasks in bulk, using a simple 'one-line' by task name", required = false)
+  var bulkAdd: String = ""
 }
 
 new JCommander(Args, args.toArray: _*)
 
 val service = connectAndGetService()
 
+bulkTasksAdd(Args.bulkAdd)
 taskDone(Args.taskToFinishId)
 bumpDueDate(Args.bump, Args.id)
 listAndQuit(Args.list)
