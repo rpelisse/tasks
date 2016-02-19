@@ -31,8 +31,17 @@ import java.util._
 
 import scala.collection.JavaConversions._
 
-val debug = true
+import akka.actor.Actor
+import akka.actor.ActorSystem
+import akka.actor.Props
 
+import scala.concurrent.Await
+import akka.pattern.ask
+import akka.util.Timeout
+import scala.concurrent.duration._
+
+val debug = true
+implicit val timeout = Timeout(65 seconds)
 val TASK_SYMBOL = scala.collection.Map("c" -> "☎", "m" -> "✉", "p" -> "⎙", "M" -> "♫")
 
 def buildTask(title:String, desc: String, date: DateTime) = {
@@ -224,19 +233,35 @@ def taskDone(id:String) = {
   }
 }
 
+class TaskCreatorActor extends Actor {
+  def receive = {
+    case task: com.google.api.services.tasks.model.Task => sender ! addTask(task)
+    case _ => println("Not a valid instance of Task")
+  }
+}
+
+def sendTaskToActor(lines: Iterator[String], taskActors: akka.actor.ActorRef) = {
+  val queue = new scala.collection.mutable.Queue[scala.concurrent.Future[Any]]
+  for ( line <- lines ) {
+      val (title, desc) = parseTaskLine(line)
+      if ( notNullNorEmpty(title) )
+        queue += taskActors ? buildTask( title, desc)
+  }
+  queue
+}
+
+def waitForTasksToBeCreated(queue: scala.collection.mutable.Queue[scala.concurrent.Future[Any]]) = {
+  for ( future <- queue ) println(Await.result(future, timeout.duration).asInstanceOf[String])
+}
+
+
 def bulkTasksAdd(tasksFile:String) = {
   if ( notNullNorEmpty(tasksFile) ) {
     println("Loading task from file:" + tasksFile)
-    val lines = scala.io.Source.fromFile(tasksFile).getLines()
-    for ( line <- lines ) {
-      println(line)
-      val (title, desc) = parseTaskLine(line)
-      println("t:" + title + ", " + desc)
-      if ( notNullNorEmpty(title) ) {
-        val result = service.tasks.insert("@default", buildTask( title,desc, today()) ).execute()
-        println("Task '" + result.getTitle() + "' has been created and added")
-      }
-    }
+    val system = ActorSystem("ActorSystem")
+    waitForTasksToBeCreated(sendTaskToActor(scala.io.Source.fromFile(tasksFile).getLines(),
+      system.actorOf(Props(new TaskCreatorActor()), name = "taks-actors")))
+    system.shutdown
     System.exit(0)
   }
 }
