@@ -135,8 +135,8 @@ def isToday(due:DateTime) = {
 }
 
 def isSameDay(due: DateTime, day: Date) = {
-  //println("Is " +  due.toStringRfc3339.substring(0,10) + " equals to " + new SimpleDateFormat("y-M-dd").format(day) + " ?")
-  due.toStringRfc3339.substring(0,10).equals(new SimpleDateFormat("y-M-dd").format(day))
+  //println("Is " +  due.toStringRfc3339.substring(0,10) + " equals to " + new SimpleDateFormat("y-MM-dd").format(day) + " ?")
+  due.toStringRfc3339.substring(0,10).equals(new SimpleDateFormat("y-MM-dd").format(day))
 }
 
 def dateDisplay(date: DateTime) = {
