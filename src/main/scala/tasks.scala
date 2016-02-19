@@ -44,9 +44,9 @@ val debug = true
 implicit val timeout = Timeout(65 seconds)
 val TASK_SYMBOL = scala.collection.Map("c" -> "☎", "m" -> "✉", "p" -> "⎙", "M" -> "♫")
 
-def buildTask(title:String, desc: String, date: DateTime) = {
+def buildTask(title:String, desc: String, date: DateTime = today(), symbol: String = "") = {
   val task = new com.google.api.services.tasks.model.Task()
-  task.setTitle(title)
+  task.setTitle(addSymbolToTitle(title, symbol))
   task.setNotes(desc)
   task.setDue(date)
   task
@@ -212,13 +212,18 @@ def bumpDueDate(days:Int, id:String):Unit = {
     System.exit(0)
   }
 }
-def editTask(id:String, title:String, desc:String, dueDate:String, symbol: String):Unit = {
+
+def addTask(task: com.google.api.services.tasks.model.Task) = {
+  "Task '" + service.tasks.insert("@default", task).execute().getTitle() + "' has been created and added"
+}
+
+def editTask(id:String, newTask: com.google.api.services.tasks.model.Task, symbol: String = ""):Unit = {
   if ( notNullNorEmpty(id) ) {
     val task = service.tasks.get("@default", id).execute()
-    if ( notNullNorEmpty(title) ) task.setTitle(title)
-    if ( notNullNorEmpty(desc)  ) task.setNotes(desc)
+    if ( notNullNorEmpty(newTask.getTitle()) ) task.setTitle(newTask.getTitle())
+    if ( notNullNorEmpty(newTask.getNotes())  ) task.setNotes(newTask.getNotes())
     if ( notNullNorEmpty(symbol)) task.setTitle(addSymbolToTitle(task.getTitle(),symbol))
-    if ( dueDate != null ) task.setDue(getDueDate(dueDate))
+    if ( newTask.getDue() != null ) task.setDue(newTask.getDue())
     val result = service.tasks.update("@default", task.getId(), task).execute()
     println(taskDisplay(task))
     System.exit(0)
@@ -324,22 +329,9 @@ bumpDueDate(Args.bump, Args.id)
 listAndQuit(Args.list)
 searchAndQuit(Args.search)
 
-var title = getTitle(Args.title, Args.email, Args.bugUrl)
-val desc = getDesc(Args.description, Args.email, Args.bugUrl)
-val dueDate = getDueDate(Args.dueDate)
 val symbol = getSymbol(Args.symbol)
+val task = buildTask( getTitle(Args.title, Args.email, Args.bugUrl), getDesc(Args.description, Args.email, Args.bugUrl), getDueDate(Args.dueDate), symbol)
 
-editTask(Args.taskToEdit, title, desc, Args.dueDate, symbol)
+editTask(Args.taskToEdit, task , symbol)
 
-title = addSymbolToTitle(title, symbol)
-
-if ( debug )
-  println("title:" + title + ", desc:" + desc)
-
-val task = new com.google.api.services.tasks.model.Task()
-task.setTitle(title)
-task.setNotes(desc)
-task.setDue(dueDate)
-
-val result = service.tasks.insert("@default", task).execute()
-println("Task '" + result.getTitle() + "' has been created and added")
+addTask(task)
