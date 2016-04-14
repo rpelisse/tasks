@@ -75,9 +75,18 @@ def readSubject(f:String) = {
   readMailFile(f).getSubject
 }
 
+def bugIdFromBugUrl(bugUrl: String) = bugUrl.substring(bugUrl.lastIndexOf('/') + 1)
+
+def descForBugUrl(bugUrl: String) = {
+  val content = scala.io.Source.fromURL("https://issues.jboss.org/rest/api/latest/issue/" + bugIdFromBugUrl(bugUrl) + "?fields=summary").mkString
+  val r = """^.*\"summary\":\"([^"]*)\".*$""".r
+  val res = Option(content) collect { case r(group) => group }
+  res.get
+}
+
 def getDesc(description:String, email:String, bugUrl:String): String = {
   if ( ! "".equals(bugUrl))
-    return bugUrl
+    return descForBugUrl(bugUrl)
 
   if ( ! "".equals(email) )
     return readEmail(email)
@@ -96,7 +105,7 @@ def parseTaskLine(line: String, sep: String = ";") = {
 
 def getTitle(title:String, email:String, bugUrl:String):String = {
   if ( ! "".equals(bugUrl) )
-    return bugUrl.substring(bugUrl.lastIndexOf('/') + 1)
+    return bugIdFromBugUrl(bugUrl)
 
   if ( ! "".equals(title) )
     return title
