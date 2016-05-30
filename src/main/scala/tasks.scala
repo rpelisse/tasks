@@ -229,9 +229,10 @@ def addTask(task: com.google.api.services.tasks.model.Task) = {
 def editTask(id:String, newTask: com.google.api.services.tasks.model.Task, symbol: String = ""):Unit = {
   if ( notNullNorEmpty(id) ) {
     val task = service.tasks.get("@default", id).execute()
-    if ( notNullNorEmpty(newTask.getTitle()) ) task.setTitle(newTask.getTitle())
+    println("NewTask Title:" + newTask.getTitle())
+    if ( notNullNorEmpty(newTask.getTitle().filterNot("☎✉⎙♫".toSet).replaceAll(" ","")) ) task.setTitle(newTask.getTitle())
     if ( notNullNorEmpty(newTask.getNotes())  ) task.setNotes(newTask.getNotes())
-    if ( notNullNorEmpty(symbol)) task.setTitle(addSymbolToTitle(task.getTitle(),symbol))
+
     if ( newTask.getDue() != null ) task.setDue(newTask.getDue())
     val result = service.tasks.update("@default", task.getId(), task).execute()
     println(taskDisplay(task))
