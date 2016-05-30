@@ -86,7 +86,7 @@ def descForBugUrl(bugUrl: String) = {
 
 def getDesc(description:String, email:String, bugUrl:String): String = {
   if ( ! "".equals(bugUrl))
-    return descForBugUrl(bugUrl)
+    return descForBugUrl(bugUrl) + "\n\n" + bugUrl
 
   if ( ! "".equals(email) )
     return readEmail(email)
