@@ -1,0 +1,21 @@
+#!/bin/bash
+
+echo TASKS_HOME=${TASKS_HOME}
+
+readonly TASKS_HOME=${TASKS_HOME:-$(pwd)}
+
+line=""
+for arg in "$@"
+do
+  echo $arg | grep -E '[ "]' -q
+  if [ $? -eq 0 ] ; then
+    line="$line '$arg'"
+  else
+    line="$line $arg"
+  fi
+done
+
+export TASKS_SERVER_BIND_ADDR=${TASKS_SERVER_BIND_ADDR:-'localhost'}
+export TASKS_SERVER_PORT=${TASKS_SERVER_PORT:-'2333'}
+export TASKS_CLIENT_SECRET="${TASKS_HOME}/client_secret.json"
+${TASKS_HOME}/src/main/bash/run-scala.sh ${TASKS_HOME}/src/main/scala/tasks.scala ${line}
