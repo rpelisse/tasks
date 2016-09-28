@@ -35,6 +35,7 @@ import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.Props
 
+import scala.Console;
 import scala.concurrent.Await
 import akka.pattern.ask
 import akka.util.Timeout
@@ -195,14 +196,14 @@ def connectAndGetService() = {
 
 def emptyStringIfNull(s: String):String = { if (s == null) "" else s }
 
-def searchAndQuit(search: String):Unit = {
+def searchAndQuit(search: String, done: () => Unit ):Unit = {
   if ( ! "".equals(search) ) {
     val tasks = service.tasks.list("@default").execute()
 
     for (task <- tasks.getItems )
       if ( task.getTitle().toLowerCase().contains(search.toLowerCase()) )
-        println(taskDisplay(task))
-    System.exit(0)
+        Console.out.println(taskDisplay(task))
+    done()
   }
 }
 
@@ -211,7 +212,7 @@ def isToday(due:DateTime) = {
 }
 
 def isSameDay(due: DateTime, day: Date) = {
-  //println("Is " +  due.toStringRfc3339.substring(0,10) + " equals to " + new SimpleDateFormat("y-MM-dd").format(day) + " ?")
+  //Console.out.println("Is " +  due.toStringRfc3339.substring(0,10) + " equals to " + new SimpleDateFormat("y-MM-dd").format(day) + " ?")
   due.toStringRfc3339.substring(0,10).equals(new SimpleDateFormat("y-MM-dd").format(day))
 }
 
