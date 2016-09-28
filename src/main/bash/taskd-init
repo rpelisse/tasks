@@ -1,0 +1,99 @@
+#!/bin/sh
+#
+# TasksD control script
+#
+# chkconfig: - 80 20
+# description: Tasks daemon startup script
+# processname: tasksd
+# pidfile: /var/run/taskd/tasksd.pid
+#
+
+readonly TASKSD_USER='rpelisse'
+readonly TASKS_HOME='/home/rpelisse/Repositories/perso/tasks.git'
+export TASKS_HOME
+
+readonly TASKSD_SCRIPT="${TASKS_HOME}/tasks"
+
+[ -r /etc/java/java.conf ] && . /etc/java/java.conf
+export JAVA_HOME
+
+readonly TASKSD_PIDFILE=${TASKSD_PIDFILE:-'/home/rpelisse/.tasksd.pid'}
+export TASKSD_PIDFILE
+
+readonly TASKSD_LOGFILE=${TASKSD_LOGFILE:-'/home/rpelisse/.tasksd.log'}
+
+prog='tasksd'
+
+start() {
+	echo -n "Starting $prog: "
+	if [ -f $TASKSD_PIDFILE ]; then
+		read ppid < $TASKSD_PIDFILE
+		if [ `ps --pid $ppid 2> /dev/null | grep -c $ppid 2> /dev/null` -eq '1' ]; then
+			echo -n "$prog is already running"
+			failure
+	        echo
+		    return 1
+	    else
+		    rm -f $TASKSD_PIDFILE
+	    fi
+	fi
+
+    touch "${TASKSD_LOGFILE}"
+    su - "${TASKSD_USER}" -c "TASKSD_PIDFILE=${TASKSD_PIDFILE} TASKS_HOME=${TASKS_HOME} ${TASKSD_SCRIPT}" >> "${TASKSD_LOGFILE}" 2>&1 &
+    echo
+	return 0
+}
+
+stop() {
+	echo -n $"Stopping $prog: "
+	count=0;
+
+	if [ -f $TASKSD_PIDFILE ]; then
+		read kpid < $TASKSD_PIDFILE
+
+		# Try issuing SIGTERM
+		kill -15 $kpid
+        #kill -9 $kpid fi fi
+        rm -f $TASKSD_PIDFILE
+   else
+      echo "No pidfile, $prog appears to not be running"
+   fi
+
+   echo
+}
+
+status() {
+	if [ -f $TASKSD_PIDFILE ]; then
+		read ppid < $TASKSD_PIDFILE
+		if [ `ps --pid $ppid 2> /dev/null | grep -c $ppid 2> /dev/null` -eq '1' ]; then
+			echo "$prog is running (pid $ppid)"
+			return 0
+		else
+			echo "$prog dead but pid file exists"
+			return 1
+		fi
+	fi
+	echo "$prog is not running"
+	return 3
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		$0 stop
+		$0 start
+		;;
+	status)
+		status
+		;;
+	*)
+		## If no parameters are given, print which are avaiable.
+		echo "Usage: $0 {start|stop|status|restart}"
+		exit 1
+		;;
+esac

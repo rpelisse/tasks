@@ -3,6 +3,7 @@ import javax.mail.internet._
 import java.io._
 import java.text.SimpleDateFormat
 import java.util._
+import java.lang.management.ManagementFactory
 
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp
@@ -28,6 +29,11 @@ import javax.mail._
 import javax.mail.internet._
 import java.io._
 import java.util._
+
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.InetAddress
+import java.io.DataInputStream
 
 import scala.collection.JavaConversions._
 
@@ -220,8 +226,12 @@ def dateDisplay(date: DateTime) = {
   new SimpleDateFormat("dd/MM/YYYY").format(new Date(date.getValue()))
 }
 
-def taskDisplay(task: com.google.api.services.tasks.model.Task) = {
-  "[" + task.getId() + "] " + task.getTitle + "\nDue on: " + dateDisplay(task.getDue()) + "\n" + emptyStringIfNull(task.getNotes)
+def taskNotesDisplay(task: com.google.api.services.tasks.model.Task, noNotesDisplay: Boolean) = {
+  if ( noNotesDisplay ) "" else { "\n" + emptyStringIfNull(task.getNotes) }
+}
+
+def taskDisplay(task: com.google.api.services.tasks.model.Task, noNotesDisplay: Boolean = false) = {
+  "[" + task.getId() + "] " + task.getTitle + "\nDue on: " + dateDisplay(task.getDue()) + taskNotesDisplay(task, noNotesDisplay)
 }
 
 def notNullNorEmpty(value: String) = {
@@ -235,64 +245,62 @@ def addSymbolToTitle(title: String, symbol: String): String = {
 
 // Features methods
 
-def listAndQuit(isListRequested: Boolean):Unit = {
-  if ( isListRequested ) {
+def listAndQuit(Args: Args, done: () => Unit):Unit = {
+  if ( Args.list ) {
     val tasks = service.tasks.list("@default").execute()
     val dueDate = today()
-    println("Today (" + dueDate + ") tasks:")
-    println
+    Console.out.println("Today (" + dueDate + ") tasks:")
+    Console.out.println
     var taskNumber = 1
-    for (task <- tasks.getItems )
-      if ( task.getDue() != null && isToday(task.getDue())) {
-        println(taskNumber + ") " + taskDisplay(task))
+    for (task <- tasks.getItems ) if ( task.getDue() != null && isToday(task.getDue())) {
+        Console.out.println(taskNumber + ") " + taskDisplay(task, Args.noNotesDisplay))
         taskNumber = taskNumber + 1
-      }
-
-    System.exit(0)
+    }
+    done()
   }
 }
 
-def bumpDueDate(days:Int, id:String):Unit = {
+def bumpDueDate(days:Int, id:String, done: () => Unit):Unit = {
   if ( days > 0 && id != null && ! "".equals(id) ) {
     val NB_SECONDS_BY_DAY = 86400L * 1000
     val task = service.tasks.get("@default", id).execute()
     task.setDue(new DateTime(task.getDue().getValue() + (days * NB_SECONDS_BY_DAY)))
     val result = service.tasks.update("@default", task.getId(), task).execute();
-    println("Task '" + result.getTitle() + " has been bumped by " + days + " days:" + dateDisplay(result.getDue()))
-    System.exit(0)
+    Console.out.println("Task '" + result.getTitle() + " has been bumped by " + days + " days:" + dateDisplay(result.getDue()))
+    done()
   }
 }
 
-def addTask(task: com.google.api.services.tasks.model.Task) = {
+def addTask(task: com.google.api.services.tasks.model.Task, done: () => Unit) = {
   "Task '" + service.tasks.insert("@default", task).execute().getTitle() + "' has been created and added"
 }
 
-def editTask(id:String, newTask: com.google.api.services.tasks.model.Task, symbol: String = ""):Unit = {
+def editTask(id:String, newTask: com.google.api.services.tasks.model.Task, symbol: String = "", done: () => Unit):Unit = {
   if ( notNullNorEmpty(id) ) {
     val task = service.tasks.get("@default", id).execute()
-    println("NewTask Title:" + newTask.getTitle())
-    if ( notNullNorEmpty(newTask.getTitle().filterNot("☎✉⎙♫".toSet).replaceAll(" ","")) ) task.setTitle(newTask.getTitle())
+    Console.out.println("New Title:" + newTask.getTitle())
+    if ( notNullNorEmpty(newTask.getTitle().filterNot(TASK_SYMBOL_STRING.toSet).replaceAll(" ","")) ) task.setTitle(newTask.getTitle())
     if ( notNullNorEmpty(newTask.getNotes())  ) task.setNotes(newTask.getNotes())
 
     if ( newTask.getDue() != null ) task.setDue(newTask.getDue())
     val result = service.tasks.update("@default", task.getId(), task).execute()
-    println(taskDisplay(task))
-    System.exit(0)
+    Console.out.println(taskDisplay(task))
+    done()
   }
 }
 
-def taskDone(id:String) = {
+def taskDone(id:String, done: () => Unit) = {
   if ( notNullNorEmpty(id) ) {
     service.tasks.delete("@default", id).execute()
-    println("Task [" + id + "] has been removed.")
-    System.exit(0)
+    Console.out.println("Task [" + id + "] has been removed.")
+    done()
   }
 }
 
 class TaskCreatorActor extends Actor {
   def receive = {
-    case task: com.google.api.services.tasks.model.Task => sender ! addTask(task)
-    case _ => println("Not a valid instance of Task")
+    case task: com.google.api.services.tasks.model.Task => sender ! addTask(task, () => {})
+    case _ => Console.out.println("Not a valid instance of Task")
   }
 }
 
@@ -307,22 +315,21 @@ def sendTaskToActor(lines: Iterator[String], taskActors: akka.actor.ActorRef) = 
 }
 
 def waitForTasksToBeCreated(queue: scala.collection.mutable.Queue[scala.concurrent.Future[Any]]) = {
-  for ( future <- queue ) println(Await.result(future, timeout.duration).asInstanceOf[String])
+  for ( future <- queue ) Console.out.println(Await.result(future, timeout.duration).asInstanceOf[String])
 }
 
 
-def bulkTasksAdd(tasksFile:String) = {
+def bulkTasksAdd(tasksFile:String, done: () => Unit) = {
   if ( notNullNorEmpty(tasksFile) ) {
-    println("Loading task from file:" + tasksFile)
-    val system = ActorSystem("ActorSystem")
-    waitForTasksToBeCreated(sendTaskToActor(scala.io.Source.fromFile(tasksFile).getLines(),
-      system.actorOf(Props(new TaskCreatorActor()), name = "taks-actors")))
+    Console.out.println("Loading task from file:" + tasksFile)
+    val system = ActorSystem("BulkTaskActors")
+    waitForTasksToBeCreated(sendTaskToActor(scala.io.Source.fromFile(tasksFile).getLines(), system.actorOf(Props(new TaskCreatorActor()), name = "task-actor")))
     system.shutdown
-    System.exit(0)
+    done()
   }
 }
 
-object Args {
+class Args {
 
   // Parameters for new tasks
   @Parameter(names = Array("-t", "--task-title"), description = "Task title", required = false)
@@ -371,21 +378,78 @@ object Args {
 
   @Parameter(names= Array("-A", "--bulk-add"), description = "Add tasks in bulk, using a simple 'one-line' by task name", required = false)
   var bulkAdd: String = ""
+
+  @Parameter(names= Array("-N", "--no-notes"), description = "Do not show notes when printing task out", required= false)
+  var noNotesDisplay = false
 }
 
-new JCommander(Args, args.toArray: _*)
+def processRequest(Args: Args, done:() => Unit) = {
+
+  bulkTasksAdd(Args.bulkAdd, done)
+  taskDone(Args.taskToFinishId, done)
+  bumpDueDate(Args.bump, Args.id, done)
+  listAndQuit(Args, done)
+  searchAndQuit(Args.search, done)
+
+  val symbol = getSymbol(Args.symbol)
+  val task = buildTask( getTitle(Args.title, Args.email, Args.bugUrl, Args.prUrl), getDesc(Args.description, Args.email, Args.bugUrl, Args.prUrl), getDueDate(Args.dueDate), symbol)
+
+  editTask(Args.taskToEdit, task , symbol, done)
+
+  addTask(task, done)
+}
+
+class TaskRequestActor extends Actor {
+  def receive = {
+    case socket: java.net.Socket => sender ! launchProcessRequest(socket)
+    case _ => Console.out.println("Not a valid java.net.Socket ! ")
+  }
+}
+
+def launchProcessRequest(socket: Socket) = {
+  val input = new DataInputStream(socket.getInputStream())
+
+  val s: String = input.readLine
+  val out = Console.out
+  println(">>> Processing command: " + s )
+  Console.setOut(socket.getOutputStream())
+  val args = parseCommandLine(s.split(" "))
+  try  {
+      processRequest(args, () => { throw new IllegalStateException("done") } )
+  } catch {
+    case done: IllegalStateException =>  {} //
+    case _: Throwable => Console.out.println("something went wrong:")
+  }
+  Console.setOut(out)
+  input.close
+  socket.close
+}
+
+def parseCommandLine(args: Array[java.lang.String]) = {
+  val arguments = new Args
+  new JCommander(arguments, args.toArray: _*)
+  arguments
+}
+
+def writeInFile(filename: String, content: String) = { new PrintWriter(filename) { write(content); close } }
 
 val service = connectAndGetService()
+if ( args.length == 0  ) {
+  val pid = ManagementFactory.getRuntimeMXBean().getName().split("@")(0)
+  println("Server Mode Started (PID:" + pid + ")")
+  writeInFile(sys.env(TASK_SERVER_PID_FILE_ENV_VAR_NAME), pid)
 
-bulkTasksAdd(Args.bulkAdd)
-taskDone(Args.taskToFinishId)
-bumpDueDate(Args.bump, Args.id)
-listAndQuit(Args.list)
-searchAndQuit(Args.search)
+  val system = ActorSystem("TaskRequestActors")
+  val actor = system.actorOf(Props(new TaskRequestActor()), name = "task-request-actor")
+  try {
+    val server = new ServerSocket(sys.env(TASK_SERVER_PORT_ENV_VAR_NAME).toInt, 1, InetAddress.getByName(sys.env(TASK_SERVER_BIND_ADDR_ENV_VAR_NAME)))
 
-val symbol = getSymbol(Args.symbol)
-val task = buildTask( getTitle(Args.title, Args.email, Args.bugUrl), getDesc(Args.description, Args.email, Args.bugUrl), getDueDate(Args.dueDate), symbol)
+    while (true) {
+      actor ? server.accept
+    }
+  } finally {
+    system.shutdown
+  }
 
-editTask(Args.taskToEdit, task , symbol)
-
-addTask(task)
+} else
+    processRequest(parseCommandLine(args), () => System.exit(0) )
