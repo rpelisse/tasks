@@ -42,7 +42,23 @@ import scala.concurrent.duration._
 
 val debug = true
 implicit val timeout = Timeout(65 seconds)
-val TASK_SYMBOL = scala.collection.Map("c" -> "☎", "m" -> "✉", "p" -> "⎙", "M" -> "♫")
+val TASK_SYMBOL = scala.collection.Map[String,String](
+  "c" -> "☎",   // call
+  "m" -> "✉",   // mail
+  "p" -> "⎙",   // print
+  "M" -> "♫",   // music
+  "w" -> "ʬ",   // set of related small taks or just a small task
+  "t" -> "ʘ",   // figure out next step, faire le point
+  "W" -> "Ɯ",   // Task
+  "€" -> "€",   // Money task
+  "x" -> "ɸ"    // find a use for thi symbol someday
+  )
+val TASK_SYMBOL_STRING = "☎✉⎙♫ʬʘɸƜ€"
+
+val TASK_CLIENT_SECRET_FILE_ENV_VAR_NAME = "TASKS_CLIENT_SECRET"
+val TASK_SERVER_BIND_ADDR_ENV_VAR_NAME = "TASKS_SERVER_BIND_ADDR"
+val TASK_SERVER_PORT_ENV_VAR_NAME = "TASKS_SERVER_PORT"
+val TASK_SERVER_PID_FILE_ENV_VAR_NAME = "TASKSD_PIDFILE"
 
 def buildTask(title:String, desc: String, date: DateTime = today(), symbol: String = "") = {
   val task = new com.google.api.services.tasks.model.Task()
