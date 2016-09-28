@@ -182,7 +182,9 @@ def connectAndGetService() = {
   val HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport()
   val SCOPES = Arrays.asList(TasksScopes.TASKS)
 
-  val clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(new FileInputStream("client_secret.json")))
+  val clientSecretFilename = sys.env(TASK_CLIENT_SECRET_FILE_ENV_VAR_NAME)
+  if ( ! new java.io.File(clientSecretFilename).exists() )  throw new IllegalStateException("Certificate file does not exists: " + clientSecretFilename)
+  val clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(new FileInputStream( clientSecretFilename )))
   val flow = new GoogleAuthorizationCodeFlow.Builder( HTTP_TRANSPORT, JSON_FACTORY, clientSecrets, SCOPES)
                   .setDataStoreFactory(DATA_STORE_FACTORY)
                   .setAccessType("offline")
