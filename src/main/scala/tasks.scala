@@ -100,7 +100,27 @@ def descForBugUrl(bugUrl: String) = {
   res.get
 }
 
-def getDesc(description:String, email:String, bugUrl:String): String = {
+def descForPrUrl(prUrl: String) = {
+  prUrl
+}
+
+def prIdFromPrUrl(prUrl: String) = {
+
+  val url = prUrl.replaceFirst("/github.com/","/api.github.com/repos/").replaceFirst("pull","pulls")
+  val content = scala.io.Source.fromURL(prUrl.replaceFirst("/github.com/","/api.github.com/repos/").replaceFirst("pull","pulls")).mkString
+  val res = scala.util.parsing.json.JSON.parseFull(content) match {
+    case Some(map: scala.collection.immutable.HashMap[String, Any]) => { "PR" +
+      map("number").toString + " - " + map("title").toString  }
+    case _ => println("other")
+  }
+  res.toString
+}
+
+def getDesc(description:String, email:String, bugUrl:String, prUrl: String): String = {
+
+  if ( ! "".equals(prUrl))
+    return descForPrUrl(prUrl) + "\n\n" + prUrl
+
   if ( ! "".equals(bugUrl))
     return descForBugUrl(bugUrl) + "\n\n" + bugUrl
 
@@ -119,7 +139,9 @@ def parseTaskLine(line: String, sep: String = ";") = {
      ("","")
 }
 
-def getTitle(title:String, email:String, bugUrl:String):String = {
+def getTitle(title:String, email:String, bugUrl:String, prUrl: String):String = {
+  if ( ! "".equals(prUrl) )
+     return prIdFromPrUrl(prUrl)
   if ( ! "".equals(bugUrl) )
     return bugIdFromBugUrl(bugUrl)
 
@@ -319,6 +341,9 @@ object Args {
 
   @Parameter(names = Array("-b", "--bug-url"), description = "A Bug entry URL", required = false)
   var bugUrl: String = ""
+
+  @Parameter(names = Array("-p", "--pull-request"), description = "A PR URL entry", required = false)
+  var prUrl: String = ""
 
   // Other features
   @Parameter(names = Array("-s", "--search-tasks"), description = "Search a task title containing the provided string", required = false)
