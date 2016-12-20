@@ -100,8 +100,10 @@ def readSubject(f:String) = {
 
 def bugIdFromBugUrl(bugUrl: String) = bugUrl.substring(bugUrl.lastIndexOf('/') + 1)
 
+def buildRestUrlFromBugUrl(bugUrl:String) = { bugUrl.replaceFirst("/browse/","/rest/api/latest/issue/").replaceFirst("$","?fields=summary") }
+
 def descForBugUrl(bugUrl: String) = {
-  val content = scala.io.Source.fromURL("https://issues.jboss.org/rest/api/latest/issue/" + bugIdFromBugUrl(bugUrl) + "?fields=summary").mkString
+  val content = scala.io.Source.fromURL(buildRestUrlFromBugUrl(bugUrl)).mkString
   val r = """^.*\"summary\":\"([^"]*)\".*$""".r
   val res = Option(content) collect { case r(group) => group }
   res.get
