@@ -22,6 +22,8 @@ export TASKSD_PIDFILE
 
 readonly TASKSD_LOGFILE=${TASKSD_LOGFILE:-'/home/rpelisse/.tasksd.log'}
 
+readonly START_DELAY='10'
+
 prog='tasksd'
 
 start() {
@@ -40,6 +42,9 @@ start() {
 
     touch "${TASKSD_LOGFILE}"
     su - "${TASKSD_USER}" -c "TASKSD_PIDFILE=${TASKSD_PIDFILE} TASKS_HOME=${TASKS_HOME} ${TASKSD_SCRIPT}" >> "${TASKSD_LOGFILE}" 2>&1 &
+    echo -n "Waiting ${START_DELAY}s for Tasksd to start..."
+    sleep "${START_DELAY}"
+    echo 'Done'
     echo
 	return 0
 }
