@@ -57,7 +57,7 @@ stop() {
 		read kpid < $TASKSD_PIDFILE
 
 		# Try issuing SIGTERM
-		kill -15 $kpid
+		kill -15 $kpid 2> /dev/null
         #kill -9 $kpid fi fi
         rm -f $TASKSD_PIDFILE
    else
