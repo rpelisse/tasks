@@ -36,16 +36,16 @@ import java.net.InetAddress
 import java.io.DataInputStream
 
 import scala.collection.JavaConversions._
+import scala.sys
+import scala.Console
+import scala.concurrent.Await
+import scala.concurrent.duration._
 
 import akka.actor.Actor
 import akka.actor.ActorSystem
 import akka.actor.Props
-
-import scala.Console;
-import scala.concurrent.Await
 import akka.pattern.ask
 import akka.util.Timeout
-import scala.concurrent.duration._
 
 val debug = true
 implicit val timeout = Timeout(65 seconds)
