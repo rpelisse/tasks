@@ -67,6 +67,8 @@ val TASK_SERVER_BIND_ADDR_ENV_VAR_NAME = "TASKS_SERVER_BIND_ADDR"
 val TASK_SERVER_PORT_ENV_VAR_NAME = "TASKS_SERVER_PORT"
 val TASK_SERVER_PID_FILE_ENV_VAR_NAME = "TASKSD_PIDFILE"
 
+val ONE_DAY__IN_MILLIS = 86400000
+
 def buildTask(title:String, desc: String, date: DateTime = today(), symbol: String = "") = {
   val task = new com.google.api.services.tasks.model.Task()
   task.setTitle(addSymbolToTitle(title, symbol))
@@ -77,6 +79,10 @@ def buildTask(title:String, desc: String, date: DateTime = today(), symbol: Stri
 
 def today() = {
   new DateTime(System.currentTimeMillis())
+}
+
+def tomorrow() = {
+  new DateTime(System.currentTimeMillis() + ONE_DAY__IN_MILLIS)
 }
 
 def readEmail(f:String) = {
@@ -247,10 +253,9 @@ def addSymbolToTitle(title: String, symbol: String): String = {
 
 // Features methods
 
-def listAndQuit(Args: Args, done: () => Unit):Unit = {
+def listTasksForDayAndQuit(Args: Args, dueDate: DateTime, done: () => Unit):Unit = {
   if ( Args.list ) {
     val tasks = service.tasks.list("@default").execute()
-    val dueDate = today()
     Console.out.println("Today (" + dueDate + ") tasks:")
     Console.out.println
     var taskNumber = 1
@@ -260,6 +265,13 @@ def listAndQuit(Args: Args, done: () => Unit):Unit = {
     }
     done()
   }
+}
+
+def listTasksAndQuit(Args: Args, done: () => Unit):Unit = {
+  if ( Args.list )
+    listTasksForDayAndQuit(Args, today(), done)
+  if ( Args.listTomorrow )
+    listTasksForDayAndQuit(Args, tomorrow(), done)
 }
 
 def bumpDueDate(days:Int, id:String, done: () => Unit):Unit = {
@@ -364,6 +376,9 @@ class Args {
   @Parameter(names= Array("-l" , "--list-today-tasks"), description = "List today's tasks" , required = false )
   var list = false
 
+  @Parameter(names= Array("-ll" , "--list-tomorrow-tasks"), description = "List tomorow's tasks" , required = false )
+  var listTomorrow = false
+
   // Features using the extra -i parameter
   @Parameter(names= Array("-B", "--bump-task"), description = "Bump due date", required = false)
   var bump: Int = 0
@@ -390,7 +405,7 @@ def processRequest(Args: Args, done:() => Unit) = {
   bulkTasksAdd(Args.bulkAdd, done)
   taskDone(Args.taskToFinishId, done)
   bumpDueDate(Args.bump, Args.id, done)
-  listAndQuit(Args, done)
+  listTasksAndQuit(Args, done)
   searchAndQuit(Args.search, done)
 
   val symbol = getSymbol(Args.symbol)
