@@ -137,7 +137,7 @@ def getDesc(description:String, email:String, bugUrl:String, prUrl: String): Str
     return descForPrUrl(prUrl) + "\n\n" + prUrl
 
   if ( ! "".equals(bugUrl))
-    return descForBugUrl(bugUrl) + "\n\n" + bugUrl
+    return descForBugUrl(bugUrl) + " - " + bugUrl
 
   if ( ! "".equals(email) )
     return readEmail(email)
@@ -221,18 +221,16 @@ def searchAndQuit(search: String, done: () => Unit ):Unit = {
   }
 }
 
-def isToday(due:DateTime) = {
-  isSameDay(due, Calendar.getInstance().getTime())
-}
+def isToday(due:DateTime) = isSameDay(due, Calendar.getInstance().getTime())
 
 def isSameDay(due: DateTime, day: Date) = {
   //Console.out.println("Is " +  due.toStringRfc3339.substring(0,10) + " equals to " + new SimpleDateFormat("y-MM-dd").format(day) + " ?")
   due.toStringRfc3339.substring(0,10).equals(new SimpleDateFormat("y-MM-dd").format(day))
 }
 
-def dateDisplay(date: DateTime) = {
-  new SimpleDateFormat("dd/MM/YYYY").format(new Date(date.getValue()))
-}
+def isSameDay(due: DateTime, day: DateTime) = due.toStringRfc3339.substring(0,10).equals(day.toStringRfc3339.substring(0,10))
+
+def dateDisplay(date: DateTime) = new SimpleDateFormat("dd/MM/YYYY").format(new Date(date.getValue()))
 
 def taskNotesDisplay(task: com.google.api.services.tasks.model.Task, noNotesDisplay: Boolean) = {
   if ( noNotesDisplay ) "" else { "\n" + emptyStringIfNull(task.getNotes) }
@@ -254,17 +252,15 @@ def addSymbolToTitle(title: String, symbol: String): String = {
 // Features methods
 
 def listTasksForDayAndQuit(Args: Args, dueDate: DateTime, done: () => Unit):Unit = {
-  if ( Args.list ) {
-    val tasks = service.tasks.list("@default").execute()
-    Console.out.println("Today (" + dueDate + ") tasks:")
-    Console.out.println
-    var taskNumber = 1
-    for (task <- tasks.getItems ) if ( task.getDue() != null && isToday(task.getDue())) {
-        Console.out.println(taskNumber + ") " + taskDisplay(task, Args.noNotesDisplay))
-        taskNumber = taskNumber + 1
-    }
-    done()
+  val tasks = service.tasks.list("@default").execute()
+  Console.out.println("Tasks due on " + dueDate + ":")
+  Console.out.println
+  var taskNumber = 1
+  for (task <- tasks.getItems ) if ( task.getDue() != null && isSameDay( dueDate, task.getDue())) {
+      Console.out.println(taskNumber + ") " + taskDisplay(task, Args.noNotesDisplay))
+      taskNumber = taskNumber + 1
   }
+  done()
 }
 
 def listTasksAndQuit(Args: Args, done: () => Unit):Unit = {
