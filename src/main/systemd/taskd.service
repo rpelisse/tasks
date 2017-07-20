@@ -1,0 +1,11 @@
+[Unit]
+Description=Taskd daemon service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/taskd.conf
+PIDFile=/home/rpelisse/.tasksd.pid
+ExecStart=/home/rpelisse/Repositories/perso/tasks.git/tasks
+
+[Install]
