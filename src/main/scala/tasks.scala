@@ -77,13 +77,9 @@ def buildTask(title:String, desc: String, date: DateTime = today(), symbol: Stri
   task
 }
 
-def today() = {
-  new DateTime(System.currentTimeMillis())
-}
+def today() = new DateTime(System.currentTimeMillis())
 
-def tomorrow() = {
-  new DateTime(System.currentTimeMillis() + ONE_DAY__IN_MILLIS)
-}
+def tomorrow() = new DateTime(System.currentTimeMillis() + ONE_DAY__IN_MILLIS)
 
 def readEmail(f:String) = {
 
