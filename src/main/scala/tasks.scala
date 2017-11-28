@@ -141,7 +141,7 @@ def prIdFromPrUrl(prUrl: String) = {
   val res = scala.util.parsing.json.JSON.parseFull(content) match {
     case Some(map: scala.collection.immutable.HashMap[String, Any]  @unchecked) => { "PR" +
       map("number").toString + " - " + map("title").toString  }
-    case e:Throwable => println("Unexpected errors:" + e.getMessage)
+    case _ => println("Should never happen!")
   }
   res.toString
 }
