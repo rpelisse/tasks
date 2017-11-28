@@ -33,6 +33,7 @@ import java.util._
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.InetAddress
+import java.net.URL
 import java.io.DataInputStream
 
 import scala.collection.JavaConversions._
@@ -40,6 +41,9 @@ import scala.sys
 import scala.Console
 import scala.concurrent.Await
 import scala.concurrent.duration._
+
+import org.jsoup.Jsoup
+import org.apache.commons.codec.binary.Base64
 
 import akka.actor.Actor
 import akka.actor.ActorSystem
@@ -69,6 +73,9 @@ val TASK_SERVER_PID_FILE_ENV_VAR_NAME = "TASKSD_PIDFILE"
 
 val ONE_DAY__IN_MILLIS = 86400000
 
+val USERNAME_ENV_NAME="TASKS_USERNAME"
+val PASSWORD_ENV_NAME="TASKS_PASSWORD"
+
 def buildTask(title:String, desc: String, date: DateTime = today(), symbol: String = "") = {
   val task = new com.google.api.services.tasks.model.Task()
   task.setTitle(addSymbolToTitle(title, symbol))
@@ -96,33 +103,45 @@ def readMailFile(f:String) = {
   new MimeMessage(s, is)
 }
 
-def readSubject(f:String) = {
-  readMailFile(f).getSubject
+def readSubject(f:String) = readMailFile(f).getSubject
+
+def encodeString(string:String):String = new String(Base64.encodeBase64(string.getBytes()))
+def prepareUrlConnection(bugUrl:String) = if ( bugUrl.contains("issues.jboss.org") ) jsoupConnectionWithBasicAuth(bugUrl) else jsoupConnectionNoAuth(bugUrl)
+def jsoupConnectionWithBasicAuth(bugUrl:String) = Jsoup.connect(bugUrl).header("Authorization", "Basic " + encodeString(buildUsernamePasswordPrefixIfProvided()))
+def jsoupConnectionNoAuth(bugUrl:String) = Jsoup.connect(bugUrl)
+
+def bugIdFromBugUrl(bugUrl: String):String = {
+  try {
+    prepareUrlConnection(bugUrl).get().title()
+  } catch {
+     case e: Throwable =>  println("Can't access " + bugUrl + " following back to building id from URL:" + e.getMessage())
+  }
+  bugUrl.substring(bugUrl.lastIndexOf('/') + 1) + " - Missing Description"
 }
 
-def bugIdFromBugUrl(bugUrl: String) = bugUrl.substring(bugUrl.lastIndexOf('/') + 1)
-
-def buildRestUrlFromBugUrl(bugUrl:String) = { bugUrl.replaceFirst("/browse/","/rest/api/latest/issue/").replaceFirst("$","?fields=summary") }
-
-def descForBugUrl(bugUrl: String) = {
-  val content = scala.io.Source.fromURL(buildRestUrlFromBugUrl(bugUrl)).mkString
-  val r = """^.*\"summary\":\"([^"]*)\".*$""".r
-  val res = Option(content) collect { case r(group) => group }
-  res.get
+def returnAuthentificationHostPrefix(username:String, password:String) = if ( ! "".equals(username) && ! "".equals(password) ) username + ":" + password else ""
+def buildUsernamePasswordPrefixIfProvided():String = {
+  try {
+    return returnAuthentificationHostPrefix(sys.env("TASKS_USERNAME"),sys.env("TASKS_PASSWORD"))
+  } catch { case e: Throwable => println("No USERNAME / PASSWORD provided:" + e.getMessage() )  }
+  return ""
 }
 
-def descForPrUrl(prUrl: String) = {
-  prUrl
+def openHttpConnectionForUrl(bugUrl:String):java.net.HttpURLConnection = new URL(bugUrl).openConnection.asInstanceOf[java.net.HttpURLConnection]
+
+def getInputStreamFrom(bugUrl:String) = {
+  val hc = openHttpConnectionForUrl(bugUrl)
+  hc.setRequestProperty("Authorization", "Basic "+ encodeString(buildUsernamePasswordPrefixIfProvided))
+  hc.getInputStream()
 }
 
 def prIdFromPrUrl(prUrl: String) = {
-
   val url = prUrl.replaceFirst("/github.com/","/api.github.com/repos/").replaceFirst("pull","pulls")
   val content = scala.io.Source.fromURL(prUrl.replaceFirst("/github.com/","/api.github.com/repos/").replaceFirst("pull","pulls")).mkString
   val res = scala.util.parsing.json.JSON.parseFull(content) match {
-    case Some(map: scala.collection.immutable.HashMap[String, Any]) => { "PR" +
+    case Some(map: scala.collection.immutable.HashMap[String, Any]  @unchecked) => { "PR" +
       map("number").toString + " - " + map("title").toString  }
-    case _ => println("other")
+    case e:Throwable => println("Unexpected errors:" + e.getMessage)
   }
   res.toString
 }
@@ -130,10 +149,10 @@ def prIdFromPrUrl(prUrl: String) = {
 def getDesc(description:String, email:String, bugUrl:String, prUrl: String): String = {
 
   if ( ! "".equals(prUrl))
-    return descForPrUrl(prUrl) + "\n\n" + prUrl
+    return "\n\n" + prUrl
 
   if ( ! "".equals(bugUrl))
-    return descForBugUrl(bugUrl) + " - " + bugUrl
+    return bugIdFromBugUrl(bugUrl) + " - " + bugUrl
 
   if ( ! "".equals(email) )
     return readEmail(email)
